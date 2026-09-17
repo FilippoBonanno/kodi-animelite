@@ -1758,9 +1758,25 @@ def animeunity(parIn):
 
         if parIn.startswith("a:"):
             anime_id = parIn[2:]
-            r = s.get(base+"/info_api/"+anime_id+"/1?start_range=1&end_range=120", headers=_auHeaders(base, ua, csrf))
-            data = json.loads(r.text)
-            episodes = data.get("episodes", [])
+            # ponytail: l'API pagina a 120 episodi per chiamata (limite loro,
+            # non nostro - verificato che start_range/end_range accettano
+            # range arbitrari). Serie lunghe (Naruto 220, One Piece 1000+)
+            # richiedono piu' chiamate finche' non si copre episodes_count.
+            episodes = []
+            start = 1
+            page_size = 120
+            episodes_count = None
+            while episodes_count is None or start <= episodes_count:
+                end = start + page_size - 1
+                r = s.get(base+"/info_api/"+anime_id+"/1?start_range="+str(start)+"&end_range="+str(end), headers=_auHeaders(base, ua, csrf))
+                data = json.loads(r.text)
+                if episodes_count is None:
+                    episodes_count = data.get("episodes_count", 0)
+                page = data.get("episodes", [])
+                if not page:
+                    break
+                episodes.extend(page)
+                start += page_size
             jsonText = '{"SetViewMode":"51","items":['
             for i, ep in enumerate(episodes):
                 if i > 0:
