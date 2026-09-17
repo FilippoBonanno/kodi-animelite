@@ -60,6 +60,12 @@ def load_state(key):
     return _load_all().get(key)
 
 
+def load_all():
+    """Carica tutto lo stato in un colpo (evita N letture file per N controlli,
+    utile per scandire una lista lunga di episodi in cerca del punto da riprendere)."""
+    return _load_all()
+
+
 def save_progress(key, resume_seconds, total_seconds, watched_threshold_pct=90):
     """Salva il progresso di riproduzione. Se la percentuale vista supera la
     soglia, marca come visto (playcount++) invece di salvare un resume point."""

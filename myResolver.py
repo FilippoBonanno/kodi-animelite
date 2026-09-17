@@ -1737,6 +1737,33 @@ def _waitForStream(url, ua, tries=3, delay=2):
             xbmc.sleep(int(delay * 1000))
     return False
 
+def _auFetchEpisodes(s, base, ua, csrf, anime_id):
+    # ponytail: l'API pagina a 120 episodi per chiamata (limite loro, non
+    # nostro - start_range/end_range accettano range arbitrari, verificato).
+    # Serie lunghe (Naruto 220, One Piece 1000+) richiedono piu' chiamate.
+    episodes = []
+    start = 1
+    page_size = 120
+    episodes_count = None
+    while episodes_count is None or start <= episodes_count:
+        end = start + page_size - 1
+        r = s.get(base+"/info_api/"+anime_id+"/1?start_range="+str(start)+"&end_range="+str(end), headers=_auHeaders(base, ua, csrf))
+        data = json.loads(r.text)
+        if episodes_count is None:
+            episodes_count = data.get("episodes_count", 0)
+        page = data.get("episodes", [])
+        if not page:
+            break
+        episodes.extend(page)
+        start += page_size
+    return episodes
+
+def _auEpisodeNum(ep):
+    try:
+        return int(ep.get("number"))
+    except Exception:
+        return 0
+
 def animeunity(parIn):
     # Resolver AnimeUnity (www.animeunity.so). Flusso a 3 livelli, tutto dentro
     # questa funzione perche' ogni chiamata Kodi al plugin e' un processo nuovo
@@ -1756,28 +1783,76 @@ def animeunity(parIn):
 
         s, ua, csrf = _auSession(base)
 
+        if parIn.startswith("g:"):
+            anime_id = parIn[2:]
+            episodes = _auFetchEpisodes(s, base, ua, csrf, anime_id)
+            if not episodes:
+                video_urls.append(("ignore", "[COLOR red]NESSUN EPISODIO[/COLOR]"))
+                return video_urls
+            dialog = xbmcgui.Dialog()
+            numStr = dialog.numeric(0, "Vai a episodio (1-"+str(len(episodes))+")")
+            if not numStr:
+                return None
+            try:
+                num = int(numStr)
+            except Exception:
+                return None
+            match = next((e for e in episodes if _auEpisodeNum(e) == num), None)
+            if not match:
+                video_urls.append(("ignore", "[COLOR red]Episodio non trovato[/COLOR]"))
+                return video_urls
+            return animeunity("e:"+str(match.get("id")))
+
+        if parIn.startswith("last:"):
+            anime_id = parIn[5:]
+            episodes = _auFetchEpisodes(s, base, ua, csrf, anime_id)
+            if not episodes:
+                video_urls.append(("ignore", "[COLOR red]NESSUN EPISODIO[/COLOR]"))
+                return video_urls
+            lastEp = max(episodes, key=_auEpisodeNum)
+            return animeunity("e:"+str(lastEp.get("id")))
+
         if parIn.startswith("a:"):
             anime_id = parIn[2:]
-            # ponytail: l'API pagina a 120 episodi per chiamata (limite loro,
-            # non nostro - verificato che start_range/end_range accettano
-            # range arbitrari). Serie lunghe (Naruto 220, One Piece 1000+)
-            # richiedono piu' chiamate finche' non si copre episodes_count.
-            episodes = []
-            start = 1
-            page_size = 120
-            episodes_count = None
-            while episodes_count is None or start <= episodes_count:
-                end = start + page_size - 1
-                r = s.get(base+"/info_api/"+anime_id+"/1?start_range="+str(start)+"&end_range="+str(end), headers=_auHeaders(base, ua, csrf))
-                data = json.loads(r.text)
-                if episodes_count is None:
-                    episodes_count = data.get("episodes_count", 0)
-                page = data.get("episodes", [])
-                if not page:
-                    break
-                episodes.extend(page)
-                start += page_size
+            episodes = _auFetchEpisodes(s, base, ua, csrf, anime_id)
+
+            # "Riprendi": primo episodio (in ordine) non ancora completato -
+            # un solo load_all() invece di N letture file per N episodi.
+            resumeEp = None
+            try:
+                import watched_store
+                watched = watched_store.load_all()
+                for ep in episodes:
+                    key = watched_store.make_key("animeunity@@e:"+str(ep.get("id")))
+                    state = watched.get(key)
+                    if not state or state.get("playcount", 0) < 1:
+                        resumeEp = ep
+                        break
+            except Exception:
+                pass
+
+            fanart = "https://www.stadiotardini.it/wp-content/uploads/2016/12/mandrakata.jpg"
             jsonText = '{"SetViewMode":"51","items":['
+            shortcuts = [
+                {"title": "[COLOR cyan]>> Vai a episodio...[/COLOR]", "myresolve": "animeunity@@g:"+anime_id,
+                 "thumbnail": "https://www.animeunity.so/images/logo.png", "fanart": fanart, "info": "Vai a un episodio specifico"},
+                {"title": "[COLOR cyan]>> Ultimo episodio ("+str(_auEpisodeNum(max(episodes, key=_auEpisodeNum)))+")[/COLOR]" if episodes else "[COLOR cyan]>> Ultimo episodio[/COLOR]",
+                 "myresolve": "animeunity@@last:"+anime_id,
+                 "thumbnail": "https://www.animeunity.so/images/logo.png", "fanart": fanart, "info": "Vai all'ultimo episodio"},
+            ]
+            if resumeEp and episodes and resumeEp.get("id") != episodes[0].get("id"):
+                shortcuts.append({
+                    "title": "[COLOR cyan]>> Riprendi: Episodio "+str(resumeEp.get("number"))+"[/COLOR]",
+                    "myresolve": "animeunity@@e:"+str(resumeEp.get("id")),
+                    "thumbnail": "https://www.animeunity.so/images/logo.png", "fanart": fanart, "info": "Riprendi dall'ultimo episodio non completato"
+                })
+            for i, it in enumerate(shortcuts):
+                if i > 0:
+                    jsonText += ','
+                jsonText += json.dumps(it)
+            if shortcuts and episodes:
+                jsonText += ','
+
             for i, ep in enumerate(episodes):
                 if i > 0:
                     jsonText += ','
@@ -1890,6 +1965,10 @@ def animeunity(parIn):
         video_urls.append(("ignore", "[COLOR red]ERRORE[/COLOR]"))
         return video_urls
 
+def _awFetchEpisodes(s, base, ua, slugId):
+    r = s.get(base+"/play/"+slugId, headers={"User-Agent": ua})
+    return re.findall(r'<a data-episode-id="([0-9]+)" data-id="([^"]+)" data-episode-num="([0-9]+)"', r.text)
+
 def animeworld(parIn):
     # Resolver AnimeWorld (www.animeworld.ac). Stesso schema a 3 livelli di
     # animeunity(): ricerca -> "a:<slug.id>" lista episodi -> "e:<token>"
@@ -1912,11 +1991,70 @@ def animeworld(parIn):
 
         s = requests.Session()
 
+        if parIn.startswith("g:"):
+            slugId = parIn[2:]
+            eps = _awFetchEpisodes(s, base, ua, slugId)
+            if not eps:
+                video_urls.append(("ignore", "[COLOR red]NESSUN EPISODIO[/COLOR]"))
+                return video_urls
+            dialog = xbmcgui.Dialog()
+            numStr = dialog.numeric(0, "Vai a episodio (1-"+str(len(eps))+")")
+            if not numStr:
+                return None
+            match = next((e for e in eps if e[2] == numStr), None)
+            if not match:
+                video_urls.append(("ignore", "[COLOR red]Episodio non trovato[/COLOR]"))
+                return video_urls
+            return animeworld("e:"+match[1])
+
+        if parIn.startswith("last:"):
+            slugId = parIn[5:]
+            eps = _awFetchEpisodes(s, base, ua, slugId)
+            if not eps:
+                video_urls.append(("ignore", "[COLOR red]NESSUN EPISODIO[/COLOR]"))
+                return video_urls
+            lastEp = max(eps, key=lambda e: int(e[2]))
+            return animeworld("e:"+lastEp[1])
+
         if parIn.startswith("a:"):
             slugId = parIn[2:]
-            r = s.get(base+"/play/"+slugId, headers={"User-Agent": ua})
+            eps = _awFetchEpisodes(s, base, ua, slugId)
+
+            resumeEp = None
+            try:
+                import watched_store
+                watched = watched_store.load_all()
+                for epId, tok, num in eps:
+                    key = watched_store.make_key("animeworld@@e:"+tok)
+                    state = watched.get(key)
+                    if not state or state.get("playcount", 0) < 1:
+                        resumeEp = (epId, tok, num)
+                        break
+            except Exception:
+                pass
+
             jsonText = '{"SetViewMode":"51","items":['
-            eps = re.findall(r'<a data-episode-id="([0-9]+)" data-id="([^"]+)" data-episode-num="([0-9]+)"', r.text)
+            shortcuts = [
+                {"title": "[COLOR cyan]>> Vai a episodio...[/COLOR]", "myresolve": "animeworld@@g:"+slugId,
+                 "thumbnail": thumb, "fanart": fanart, "info": "Vai a un episodio specifico"},
+            ]
+            if eps:
+                lastNum = max(int(e[2]) for e in eps)
+                shortcuts.append({"title": "[COLOR cyan]>> Ultimo episodio ("+str(lastNum)+")[/COLOR]", "myresolve": "animeworld@@last:"+slugId,
+                                   "thumbnail": thumb, "fanart": fanart, "info": "Vai all'ultimo episodio"})
+            if resumeEp and eps and resumeEp[1] != eps[0][1]:
+                shortcuts.append({
+                    "title": "[COLOR cyan]>> Riprendi: Episodio "+resumeEp[2]+"[/COLOR]",
+                    "myresolve": "animeworld@@e:"+resumeEp[1],
+                    "thumbnail": thumb, "fanart": fanart, "info": "Riprendi dall'ultimo episodio non completato"
+                })
+            for i, it in enumerate(shortcuts):
+                if i > 0:
+                    jsonText += ','
+                jsonText += json.dumps(it)
+            if shortcuts and eps:
+                jsonText += ','
+
             for i, (epId, tok, num) in enumerate(eps):
                 if i > 0:
                     jsonText += ','
