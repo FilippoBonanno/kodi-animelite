@@ -1718,6 +1718,25 @@ def _auEpisodeTitle(file_name):
         title_tokens.append(t)
     return " ".join(title_tokens).strip()
 
+def _waitForStream(url, ua, tries=3, delay=2):
+    # ponytail: nodo CDN a volte torna 503 per pochi secondi (sovraccarico
+    # momentaneo, non token scaduto ne' blocco permanente - verificato: lo
+    # stesso link torna 200 poco dopo). Retry breve qui evita che l'errore
+    # arrivi fino a Kodi come "Playback failed". Ceiling: 3 tentativi fissi,
+    # non backoff esponenziale ne' coda; se il nodo resta giu' piu' a lungo
+    # l'utente vede comunque l'errore.
+    for i in range(tries):
+        try:
+            r = requests.get(url, headers={"User-Agent": ua, "Range": "bytes=0-1"}, timeout=6, stream=True)
+            r.close()
+            if r.status_code in (200, 206):
+                return True
+        except Exception:
+            pass
+        if i < tries - 1:
+            xbmc.sleep(int(delay * 1000))
+    return False
+
 def animeunity(parIn):
     # Resolver AnimeUnity (www.animeunity.so). Flusso a 3 livelli, tutto dentro
     # questa funzione perche' ogni chiamata Kodi al plugin e' un processo nuovo
@@ -1775,15 +1794,22 @@ def animeunity(parIn):
             # window.downloadUrl = mp4 progressivo diretto: piu' semplice e stabile
             # della window.masterPlaylist (m3u8 su vixcloud.co, torna 403 nei test).
             dl = preg_match(rEmb.text, r"window\.downloadUrl\s*=\s*'(.*?)'")
+            finalUrl = None
             if dl:
-                return dl
-            pl = preg_match(rEmb.text, r"url:\s*'(.*?)'")
-            tok = preg_match(rEmb.text, r"'token':\s*'(.*?)'")
-            exp = preg_match(rEmb.text, r"'expires':\s*'(.*?)'")
-            if pl and tok:
-                return pl+"?token="+tok+"&expires="+exp
-            video_urls.append(("ignore", "[COLOR red]STREAM NON TROVATO[/COLOR]"))
-            return video_urls
+                finalUrl = dl
+            else:
+                pl = preg_match(rEmb.text, r"url:\s*'(.*?)'")
+                tok = preg_match(rEmb.text, r"'token':\s*'(.*?)'")
+                exp = preg_match(rEmb.text, r"'expires':\s*'(.*?)'")
+                if pl and tok:
+                    finalUrl = pl+"?token="+tok+"&expires="+exp
+            if not finalUrl:
+                video_urls.append(("ignore", "[COLOR red]STREAM NON TROVATO[/COLOR]"))
+                return video_urls
+            if not _waitForStream(finalUrl, ua):
+                video_urls.append(("ignore", "[COLOR orange]Server AnimeUnity momentaneamente non disponibile, riprova tra poco[/COLOR]"))
+                return video_urls
+            return finalUrl
 
         # livello 1: ricerca per titolo
         r = s.post(base+"/livesearch", data=json.dumps({"title": parIn}), headers=_auHeaders(base, ua, csrf))
@@ -1902,10 +1928,13 @@ def animeworld(parIn):
             r = s.get(base+"/api/episode/info", params={"id": token, "alt": "0"}, headers=h)
             data = json.loads(r.text)
             grabber = data.get("grabber")
-            if grabber:
-                return grabber
-            video_urls.append(("ignore", "[COLOR red]STREAM NON TROVATO[/COLOR]"))
-            return video_urls
+            if not grabber:
+                video_urls.append(("ignore", "[COLOR red]STREAM NON TROVATO[/COLOR]"))
+                return video_urls
+            if not _waitForStream(grabber, ua):
+                video_urls.append(("ignore", "[COLOR orange]Server AnimeWorld momentaneamente non disponibile, riprova tra poco[/COLOR]"))
+                return video_urls
+            return grabber
 
         # livello 1: ricerca per titolo
         r = s.get(base+"/search", params={"keyword": parIn}, headers={"User-Agent": ua})
