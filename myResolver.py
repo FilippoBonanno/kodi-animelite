@@ -5,7 +5,7 @@ versione='1.2.91'
 # Created on: 10.04.2021
 # Last update: 03.11.2024
 # License: GPL v.3 https://www.gnu.org/copyleft/gpl.html
-import re, requests, sys, logging, uuid
+import re, requests, sys, logging, uuid, json
 import os
 import string
 import random
