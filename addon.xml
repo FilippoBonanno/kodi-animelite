@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addon id="plugin.video.animelite"
+version="1.0.0"
+name="[B][COLOR cyan]AnimeLite[/COLOR][/B]"
+provider-name="FilippoBonanno">
+<requires>
+  <import addon="xbmc.python" version="3.0.0"/>
+  <import addon="script.module.requests" version="2.22.0"/>
+</requires>
+<extension point="xbmc.python.pluginsource" library="default.py">
+  <provides>video</provides>
+</extension>
+<extension point="xbmc.addon.metadata">
+  <summary lang="en">AnimeLite - AnimeUnity + AnimeWorld</summary>
+  <description lang="en_GB">Anime search addon (AnimeUnity + AnimeWorld) with configurable domains and resume/watched tracking.</description>
+  <summary lang="it">AnimeLite - AnimeUnity + AnimeWorld</summary>
+  <description lang="it_IT">Addon di ricerca anime (AnimeUnity + AnimeWorld) con domini configurabili e memoria di visualizzazione (resume/gia visto).</description>
+  <disclaimer lang="it_IT">
+  Questo addon e' un raccoglitore di contenuti multimediali tramite sistema di scraping.
+  Si intende pertanto che sono recuperabili liberamente dalla rete.
+  </disclaimer>
+  <assets>
+    <icon>icon.png</icon>
+    <fanart>fanart.jpg</fanart>
+  </assets>
+  <news>
+  #Vers. 1.0.0
+  Prima release lite: AnimeUnity + AnimeWorld, domini configurabili, resume/watched.
+  </news>
+</extension>
+</addon>
