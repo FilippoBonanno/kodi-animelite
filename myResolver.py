@@ -1695,6 +1695,29 @@ def _auHeaders(base, ua, csrf=None, ajax=True):
         h["X-CSRF-TOKEN"] = csrf
     return h
 
+_AU_STOP_TOKENS = set(['WEB-DL', 'WEBDL', 'WEBRIP', 'HDTV', 'BDRIP', 'BLURAY', 'BLU-RAY',
+                        'AMZN', 'NF', 'DSNP', 'HULU', 'CR', 'JPN', 'ITA', 'ENG', 'SUB', 'SUBS',
+                        'AAC', 'AAC2', 'AC3', 'DDP', 'H', '264', '265', 'X264', 'X265', 'HEVC',
+                        'MKV', 'MP4', '0'])
+
+def _auEpisodeTitle(file_name):
+    # ponytail: titolo estratto dal filename (nessun campo titolo dedicato
+    # nell'API AnimeUnity). Euristica su naming scene-release, non garantita
+    # su file con nomi non standard: fallback a nessun titolo (solo numero).
+    import re
+    m = re.search(r'S\d+E\d+\.(.+)', file_name, re.IGNORECASE)
+    if not m:
+        return ""
+    tokens = m.group(1).split('.')
+    title_tokens = []
+    for t in tokens:
+        if re.match(r'^\d{3,4}p$', t, re.IGNORECASE):
+            break
+        if t.upper() in _AU_STOP_TOKENS:
+            break
+        title_tokens.append(t)
+    return " ".join(title_tokens).strip()
+
 def animeunity(parIn):
     # Resolver AnimeUnity (www.animeunity.so). Flusso a 3 livelli, tutto dentro
     # questa funzione perche' ogni chiamata Kodi al plugin e' un processo nuovo
@@ -1725,7 +1748,10 @@ def animeunity(parIn):
                     jsonText += ','
                 num = ep.get("number", "?")
                 epId = ep.get("id")
-                jsonText += '{"title":"[COLOR gold]Episodio '+str(num)+'[/COLOR]",'
+                epTitle = _auEpisodeTitle(ep.get("file_name") or ep.get("link") or "")
+                epLabel = "Episodio "+str(num)+((" - "+epTitle) if epTitle else "")
+                epLabel = epLabel.replace('"', "'")
+                jsonText += '{"title":"[COLOR gold]'+epLabel+'[/COLOR]",'
                 jsonText += '"myresolve":"animeunity@@e:'+str(epId)+'",'
                 jsonText += '"thumbnail":"https://www.animeunity.so/images/logo.png",'
                 jsonText += '"fanart":"https://www.stadiotardini.it/wp-content/uploads/2016/12/mandrakata.jpg",'
