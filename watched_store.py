@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 import xbmcaddon
 import xbmcvfs
 
-ADDON_ID = 'plugin.video.mandrakodi'
+ADDON_ID = 'plugin.video.animelite'
 STORE_FILE = 'watched.json'
 
 

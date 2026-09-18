@@ -16,7 +16,7 @@ import xbmcaddon
 import xbmcplugin
 
 
-addon_id = 'plugin.video.mandrakodi'
+addon_id = 'plugin.video.animelite'
 #selfAddon = xbmcaddon.Addon(id=addon_id)
 debug = xbmcaddon.Addon(id=addon_id).getSetting("debug")
 

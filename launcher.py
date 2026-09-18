@@ -23,7 +23,7 @@ import watched_store
 _url = sys.argv[0]
 # Get the plugin handle as an integer number.
 _handle = int(sys.argv[1])
-addon_id = 'plugin.video.mandrakodi'
+addon_id = 'plugin.video.animelite'
 #selfAddon = xbmcaddon.Addon(id=addon_id)
 xbmcaddon.Addon(id=addon_id).setSetting("debug", "on")
 
@@ -1635,7 +1635,7 @@ def run():
                     xbmcgui.Dialog().ok('[B][COLOR yellow]AVVISO[/COLOR][/B]','[COLOR lime]CHIUDI KODI E APRI DI NUOVO PER AGGIORNARE IMPOSTAZIONI[/COLOR]')
                     xbmc.executebuiltin("XBMC.Container.Refresh()")
                 except:
-                    xbmc.executebuiltin('Addon.OpenSettings(plugin.video.mandrakodi)')
+                    xbmc.executebuiltin('Addon.OpenSettings(plugin.video.animelite)')
             elif action == 'plugin':
                 logga("CALL PLUGIN: "+url)
                 url2=url.replace("plugin://", "")
