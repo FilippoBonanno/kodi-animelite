@@ -541,9 +541,23 @@ def jsonToItems(strJson):
             list_item.setInfo('video', videoInfo)
             list_item.setArt({'thumb': thumb, 'icon': thumb, 'poster': thumb, 'landscape': fanart, 'fanart': fanart})
             if watched_entry and watched_entry.get('playcount', 0) < 1 and watched_entry.get('resume', 0) > 0:
-                # pattern piu' semplice per un ListItem non-libreria (compatibile Kodi 20/21)
-                list_item.setProperty('ResumeTime', str(watched_entry.get('resume')))
-                list_item.setProperty('TotalTime', str(watched_entry.get('total', 0)))
+                resumeSec = float(watched_entry.get('resume'))
+                totalSec = float(watched_entry.get('total', 0))
+                # ResumeTime/TotalTime: vecchio meccanismo, ancora usato da Kodi
+                # per il menu contestuale "Resume from" - tenuto per compatibilita'.
+                list_item.setProperty('ResumeTime', str(resumeSec))
+                list_item.setProperty('TotalTime', str(totalSec))
+                # La barra di avanzamento di Estuary nelle viste Poster/Wall legge
+                # pero' l'infolabel ListItem.PercentPlayed, che Kodi calcola SOLO
+                # dal resume point sul VideoInfoTag, non dalle property raw sopra:
+                # senza questa chiamata il segno di "completato" si vede (arriva da
+                # setInfo/playcount) ma la barra blu no (bug riportato dal cliente,
+                # riprodotto su Kodi 21.3/Estuary - v1.0.5 e precedenti).
+                if totalSec > 0:
+                    try:
+                        list_item.getVideoInfoTag().setResumePoint(resumeSec, totalSec)
+                    except Exception:
+                        pass
             url = ""
 
             if extLink == True:

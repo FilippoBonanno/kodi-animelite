@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addon id="plugin.video.animelite"
-version="1.0.5"
+version="1.0.6"
 name="[B][COLOR cyan]AnimeLite[/COLOR][/B]"
 provider-name="FilippoBonanno">
 <requires>
@@ -24,6 +24,8 @@ provider-name="FilippoBonanno">
     <fanart>fanart.jpg</fanart>
   </assets>
   <news>
+  #Vers. 1.0.6
+  Fix: barra di avanzamento (resume) non visibile nelle viste Poster/Wall.
   #Vers. 1.0.0
   Prima release lite: AnimeUnity + AnimeWorld, domini configurabili, resume/watched.
   </news>
