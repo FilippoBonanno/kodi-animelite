@@ -1628,6 +1628,7 @@ def animeDomains(parIn):
     # pre-compilati col valore attuale. Nessuna sotto-lista da mostrare.
     _promptAnimeDomain("animeunityDomain", "AnimeUnity", "https://www.animeunity.so")
     _promptAnimeDomain("animeworldDomain", "AnimeWorld", "https://www.animeworld.ac")
+    _promptAnimeDomain("streamingunityDomain", "StreamingUnity", "https://streamingunity.fun")
     xbmcgui.Dialog().notification("Mandrakodi", "Domini aggiornati", xbmcgui.NOTIFICATION_INFO, 3000)
     return None
 
@@ -5477,6 +5478,146 @@ def infoCode(parIn=''):
     return None
         
 
+def _suPage(s, url):
+    # Pagine StreamingUnity = Inertia.js: tutto lo stato e' nel JSON di
+    # <div id="app" data-page="...">. Ritorna le "props" o None.
+    import json, html
+    r = s.get(url, timeout=20)
+    if r.status_code != 200:
+        return None
+    m = re.search(r'<div id="app" data-page="(.*?)"', r.text, re.S)
+    if not m:
+        return None
+    return json.loads(html.unescape(m.group(1)))["props"]
+
+def _suImg(cdn, images, kinds=("cover", "poster", "background")):
+    for kind in kinds:
+        for im in images or []:
+            if im.get("type") == kind and im.get("filename"):
+                return cdn + "/images/" + im["filename"]
+    return ""
+
+def _suStream(s, base, ua, iframePath):
+    # /it/iframe/<id>[?episode_id=N] -> embed vixcloud -> master playlist HLS
+    # (token + expires nel JS dell'embed). Ritorna l'URL finale o None.
+    r = s.get(base + iframePath, timeout=20)
+    src = [x for x in re.findall(r'src="(.*?)"', r.text) if "vixcloud" in x]
+    if not src:
+        return None
+    emb = src[0].replace("&amp;", "&")
+    flat = s.get(emb, headers={"Referer": base + "/"}, timeout=20).text.replace("\n", "").replace("\r", "").replace("\t", "")
+    tok = preg_match(flat, r"'token':\s*'(.*?)'")
+    exp = preg_match(flat, r"'expires':\s*'(.*?)'")
+    pl = preg_match(flat, r"window\.masterPlaylist.*?url:\s*'(.*?)'")
+    if not (tok and exp and pl):
+        return None
+    url = pl + ("&" if "?" in pl else "?") + "token=" + tok + "&expires=" + exp + "&n=1"
+    if "canPlayFHD=1" in emb:
+        url += "&h=1"
+    return url + "|Referer=https://vixcloud.co/&User-Agent=" + ua
+
+def streamingunity(parIn):
+    # Film e serie TV da StreamingUnity. Livelli (ogni chiamata Kodi e' un
+    # processo nuovo, lo stato sta nel parametro):
+    #   ricerca -> "t:<id-slug>" stagioni -> "s:<id-slug>---<n>" episodi
+    #           -> "e:<id-slug>---<episodeId>" stream
+    #   ricerca -> "m:<id-slug>" film -> stream
+    # Si usa il prefisso /it/ (senza, il sito risponde 404/405).
+    import json
+    logga("STREAMINGUNITY IN: "+str(parIn))
+    video_urls = []
+    base = _animeDomain("streamingunityDomain", "https://streamingunity.fun")
+    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+    fanart = "https://www.stadiotardini.it/wp-content/uploads/2016/12/mandrakata.jpg"
+    def menu(items):
+        return [(json.dumps({"SetViewMode": "51", "items": items}), "PLAY VIDEO", "No info", "noThumb", "json")]
+    def msg(text, colour="red"):
+        return menu([{"title": "[COLOR "+colour+"]"+text+"[/COLOR]", "link": "ignore", "thumbnail": fanart, "fanart": fanart, "info": text}])
+    try:
+        s = requests.Session()
+        s.headers.update({"User-Agent": ua, "Accept-Language": "it-IT,it;q=0.9"})
+
+        if parIn == "_search":
+            title = xbmcgui.Dialog().input("Cerca film o serie TV su StreamingUnity")
+            if not title:
+                return None
+            from urllib.parse import quote
+            r = s.get(base + "/it/search?q=" + quote(title), headers={
+                "X-Inertia": "true", "X-Requested-With": "XMLHttpRequest",
+                "X-Inertia-Version": _suVersion(s, base)}, timeout=20)
+            props = r.json()["props"]
+            cdn = props.get("cdn_url", "")
+            items = []
+            for t in props.get("titles", []):
+                slug = str(t.get("id"))+"-"+str(t.get("slug"))
+                isMovie = t.get("type") == "movie"
+                year = (t.get("last_air_date_it") or t.get("last_air_date") or "")[:4]
+                label = t.get("name", slug) + ((" ("+year+")") if year else "")
+                label += " [film]" if isMovie else " [serie, "+str(t.get("seasons_count", "?"))+" st.]"
+                items.append({"title": "[COLOR lime]"+label+"[/COLOR]",
+                              "myresolve": "streamingunity@@"+("m:" if isMovie else "t:")+slug,
+                              "thumbnail": _suImg(cdn, t.get("images")), "fanart": fanart, "info": "StreamingUnity"})
+            return menu(items) if items else msg("NESSUN RISULTATO")
+
+        kind, _, rest = parIn.partition(":")
+
+        if kind == "m":
+            url = _suStream(s, base, ua, "/it/iframe/"+rest.split("-")[0])
+            if not url:
+                return msg("STREAM NON TROVATO")
+            return url
+
+        if kind == "t":
+            props = _suPage(s, base + "/it/titles/" + rest)
+            if not props:
+                return msg("TITOLO NON TROVATO")
+            cdn = props.get("cdn_url", "")
+            tit = props["title"]
+            img = _suImg(cdn, tit.get("images"))
+            items = [{"title": "[COLOR gold]Stagione "+str(se["number"])+"[/COLOR]",
+                      "myresolve": "streamingunity@@s:"+rest+"---"+str(se["number"]),
+                      "thumbnail": img, "fanart": fanart, "info": (tit.get("plot") or "StreamingUnity")}
+                     for se in tit.get("seasons", [])]
+            return menu(items) if items else msg("NESSUNA STAGIONE")
+
+        if kind == "s":
+            slug, _, num = rest.partition("---")
+            props = _suPage(s, base + "/it/titles/" + slug + "/season-" + num)
+            if not props:
+                return msg("STAGIONE NON TROVATA")
+            cdn = props.get("cdn_url", "")
+            cover = _suImg(cdn, props["title"].get("images"))
+            items = []
+            for ep in props["loadedSeason"].get("episodes", []):
+                n = str(ep.get("number"))
+                items.append({"title": "[COLOR gold]"+num+"x"+n.zfill(2)+" - "+str(ep.get("name") or "")+"[/COLOR]",
+                              "myresolve": "streamingunity@@e:"+slug+"---"+str(ep.get("id")),
+                              "thumbnail": _suImg(cdn, ep.get("images"), ("cover", "poster", "background", "screenshot")) or cover,
+                              "fanart": fanart, "info": (ep.get("plot") or "").replace("\n", " ")})
+            return menu(items) if items else msg("NESSUN EPISODIO")
+
+        if kind == "e":
+            slug, _, epId = rest.partition("---")
+            url = _suStream(s, base, ua, "/it/iframe/"+slug+"?episode_id="+epId)
+            if not url:
+                return msg("STREAM NON TROVATO")
+            return url
+
+        return msg("COMANDO NON VALIDO")
+    except Exception as err:
+        import traceback
+        traceback.print_exc()
+        xbmcgui.Dialog().ok("AnimeLite", "ERRORE STREAMINGUNITY: {0}".format(err))
+        video_urls.append(("ignore", "[COLOR red]ERRORE[/COLOR]"))
+        return video_urls
+
+def _suVersion(s, base):
+    # versione asset Inertia, richiesta nell'header X-Inertia-Version
+    import json, html
+    r = s.get(base + "/it", timeout=20)
+    m = re.search(r'<div id="app" data-page="(.*?)"', r.text, re.S)
+    return json.loads(html.unescape(m.group(1)))["version"] if m else ""
+
 def run (action, params=None):
     logga('Run version '+versione)
     commands = {
@@ -5510,6 +5651,7 @@ def run (action, params=None):
         'toonita' : toonIta,
         'animeunity' : animeunity,
         'animeworld' : animeworld,
+        'streamingunity' : streamingunity,
         'animedomains' : animeDomains,
         'uprot' : uprot,
         'stsb' : streamsb,

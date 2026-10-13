@@ -28,5 +28,6 @@
 	<category label="Domini Anime">
 		<setting id="animeunityDomain" label="Dominio AnimeUnity" type="text" default="https://www.animeunity.so" visible="true" />
 		<setting id="animeworldDomain" label="Dominio AnimeWorld" type="text" default="https://www.animeworld.ac" visible="true" />
+		<setting id="streamingunityDomain" label="Dominio StreamingUnity" type="text" default="https://streamingunity.fun" visible="true" />
 	</category>
 </settings>

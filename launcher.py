@@ -131,7 +131,14 @@ def getSource():
                 "info": "Cerca un anime su AnimeWorld"
             },
             {
-                "title": "[COLOR grey]Cambia dominio AnimeUnity/AnimeWorld[/COLOR]",
+                "title": "[COLOR cyan]StreamingUnity - Film e Serie TV (ricerca)[/COLOR]",
+                "myresolve": "streamingunity@@_search",
+                "thumbnail": fanart,
+                "fanart": fanart,
+                "info": "Cerca un film o una serie TV su StreamingUnity"
+            },
+            {
+                "title": "[COLOR grey]Cambia dominio AnimeUnity/AnimeWorld/StreamingUnity[/COLOR]",
                 "myresolve": "animedomains@@_edit",
                 "thumbnail": fanart,
                 "fanart": fanart,
