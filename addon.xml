@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addon id="plugin.video.animelite"
-version="1.1.0"
+version="1.1.1"
 name="[B][COLOR cyan]AnimeLite[/COLOR][/B]"
 provider-name="FilippoBonanno">
 <requires>
@@ -24,6 +24,10 @@ provider-name="FilippoBonanno">
     <fanart>fanart.jpg</fanart>
   </assets>
   <news>
+  #Vers. 1.1.1
+  Fix: episodio non segnato come visto (soglia 85%, salti di posizione, scorciatoie Vai a/Ultimo). Nuova vista parziale con percentuale nel titolo.
+  #Vers. 1.1.0
+  Aggiunta sezione Film e Serie TV (StreamingUnity).
   #Vers. 1.0.6
   Fix: barra di avanzamento (resume) non visibile nelle viste Poster/Wall.
   #Vers. 1.0.0

@@ -17,6 +17,11 @@ import xbmcplugin
 
 
 addon_id = 'plugin.video.animelite'
+
+# Le scorciatoie "Vai a episodio"/"Ultimo episodio" risolvono un episodio reale: qui
+# si segnala al launcher con quale chiave salvare visto/resume (quella dell'episodio,
+# non quella della scorciatoia, che e' fissa per anime).
+_KEY_OVERRIDE = {}
 #selfAddon = xbmcaddon.Addon(id=addon_id)
 debug = xbmcaddon.Addon(id=addon_id).getSetting("debug")
 
@@ -1802,6 +1807,7 @@ def animeunity(parIn):
             if not match:
                 video_urls.append(("ignore", "[COLOR red]Episodio non trovato[/COLOR]"))
                 return video_urls
+            _KEY_OVERRIDE["k"] = "animeunity@@e:"+str(match.get("id"))
             return animeunity("e:"+str(match.get("id")))
 
         if parIn.startswith("last:"):
@@ -1811,6 +1817,7 @@ def animeunity(parIn):
                 video_urls.append(("ignore", "[COLOR red]NESSUN EPISODIO[/COLOR]"))
                 return video_urls
             lastEp = max(episodes, key=_auEpisodeNum)
+            _KEY_OVERRIDE["k"] = "animeunity@@e:"+str(lastEp.get("id"))
             return animeunity("e:"+str(lastEp.get("id")))
 
         if parIn.startswith("a:"):
@@ -2006,6 +2013,7 @@ def animeworld(parIn):
             if not match:
                 video_urls.append(("ignore", "[COLOR red]Episodio non trovato[/COLOR]"))
                 return video_urls
+            _KEY_OVERRIDE["k"] = "animeworld@@e:"+match[1]
             return animeworld("e:"+match[1])
 
         if parIn.startswith("last:"):
@@ -2015,6 +2023,7 @@ def animeworld(parIn):
                 video_urls.append(("ignore", "[COLOR red]NESSUN EPISODIO[/COLOR]"))
                 return video_urls
             lastEp = max(eps, key=lambda e: int(e[2]))
+            _KEY_OVERRIDE["k"] = "animeworld@@e:"+lastEp[1]
             return animeworld("e:"+lastEp[1])
 
         if parIn.startswith("a:"):

@@ -23,7 +23,7 @@
 		<setting id="SkinInfo2"  label="Type Info 2" type="number" default="504" visible="true" />
 	</category>
 	<category label="Memoria Visualizzazione">
-		<setting id="watchedThreshold" label="Soglia %% per segnare come visto" type="number" default="90" visible="true" />
+		<setting id="watchedThreshold" label="Soglia %% per segnare come visto" type="number" default="85" visible="true" />
 	</category>
 	<category label="Domini Anime">
 		<setting id="animeunityDomain" label="Dominio AnimeUnity" type="text" default="https://www.animeunity.so" visible="true" />

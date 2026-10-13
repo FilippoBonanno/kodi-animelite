@@ -293,6 +293,14 @@ class _ResumePlayer(xbmc.Player):
     def onPlayBackPaused(self):
         self._refresh()
 
+    def onPlayBackSeek(self, time, seekOffset):
+        # salti (anche +10 min) aggiornano subito la posizione: senza questo,
+        # uno Stop poco dopo un salto salvava la posizione precedente al salto
+        try:
+            self.cur_time = time / 1000.0
+        except Exception:
+            pass
+
 
 def _monitorPlayback(item_key):
     player = _ResumePlayer(item_key)
@@ -317,7 +325,7 @@ def _monitorPlayback(item_key):
     # (pattern standard Kodi: xbmc.Monitor + waitForAbort).
     while player.isPlaying() and not monitor.abortRequested():
         player._refresh()
-        if monitor.waitForAbort(5):
+        if monitor.waitForAbort(2):
             break
     player._persist()
 
@@ -550,6 +558,9 @@ def jsonToItems(strJson):
             if watched_entry and watched_entry.get('playcount', 0) < 1 and watched_entry.get('resume', 0) > 0:
                 resumeSec = float(watched_entry.get('resume'))
                 totalSec = float(watched_entry.get('total', 0))
+                if totalSec > 0:
+                    # vista parziale visibile in qualsiasi skin/vista (la barra c'e' solo in Poster/Wall)
+                    list_item.setLabel(titolo+" [COLOR orange](visto "+str(int(round(100.0*resumeSec/totalSec)))+"%)[/COLOR]")
                 # ResumeTime/TotalTime: vecchio meccanismo, ancora usato da Kodi
                 # per il menu contestuale "Resume from" - tenuto per compatibilita'.
                 list_item.setProperty('ResumeTime', str(resumeSec))
@@ -858,6 +869,12 @@ def callReolver(metodo, parametro, item_key=None):
         xbmcplugin.addDirectoryItem(_handle, url, list_item, False)
     else:
         retVal = myResolver.run(metodo, parametro)
+
+        # scorciatoie (Vai a / Ultimo episodio): visto e resume vanno salvati
+        # sull'episodio vero, non sulla voce-scorciatoia
+        keyOverride = myResolver._KEY_OVERRIDE.pop("k", None)
+        if keyOverride:
+            item_key = watched_store.make_key(keyOverride)
 
         if retVal == None:
             return
