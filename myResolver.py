@@ -5487,6 +5487,50 @@ def infoCode(parIn=''):
     return None
         
 
+def _suUnblockDns(host):
+    # Mantiene hostname HTTP e SNI TLS: cambia solo la risoluzione DNS.
+    import socket
+    import ipaddress
+    if not host:
+        return
+    host = host.lower().rstrip(".")
+    resolver = socket.getaddrinfo
+    original = getattr(resolver, "_su_original", resolver)
+    overrides = getattr(resolver, "_su_overrides", {})
+    try:
+        addresses = original(host, 443, socket.AF_INET, socket.SOCK_STREAM)
+        if not any(item[4][0] == "127.0.0.1" for item in addresses):
+            overrides.pop(host, None)
+            return
+        response = requests.get(
+            "https://1.1.1.1/dns-query",
+            params={"name": host, "type": "A"},
+            headers={"Accept": "application/dns-json"}, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        if data.get("Status") != 0:
+            return
+        for answer in data.get("Answer", []):
+            if answer.get("type") != 1:
+                continue
+            address = ipaddress.ip_address(answer.get("data", ""))
+            if address.version != 4 or not address.is_global:
+                continue
+            overrides[host] = str(address)
+            if not hasattr(resolver, "_su_original"):
+                def getaddrinfo(name, *args, **kwargs):
+                    key = name.decode("ascii") if isinstance(name, bytes) else name
+                    if isinstance(key, str):
+                        key = key.lower().rstrip(".")
+                    return original(overrides.get(key, name), *args, **kwargs)
+                getaddrinfo._su_original = original
+                getaddrinfo._su_overrides = overrides
+                socket.getaddrinfo = getaddrinfo
+            return
+    except Exception as err:
+        logga("StreamingUnity DNS fallback: " + str(err))
+
+
 def _suPage(s, url):
     # Pagine StreamingUnity = Inertia.js: tutto lo stato e' nel JSON di
     # <div id="app" data-page="...">. Ritorna le "props" o None.
@@ -5543,6 +5587,7 @@ def streamingunity(parIn):
     def msg(text, colour="red"):
         return menu([{"title": "[COLOR "+colour+"]"+text+"[/COLOR]", "link": "ignore", "thumbnail": fanart, "fanart": fanart, "info": text}])
     try:
+        _suUnblockDns(myParse.urlparse(base).hostname)
         s = requests.Session()
         s.headers.update({"User-Agent": ua, "Accept-Language": "it-IT,it;q=0.9"})
 

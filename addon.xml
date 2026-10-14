@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addon id="plugin.video.animelite"
-version="1.1.1"
+version="1.1.2"
 name="[B][COLOR cyan]AnimeLite[/COLOR][/B]"
 provider-name="FilippoBonanno">
 <requires>
@@ -24,6 +24,8 @@ provider-name="FilippoBonanno">
     <fanart>fanart.jpg</fanart>
   </assets>
   <news>
+  #Vers. 1.1.2
+  Fix: fallback DNS-over-HTTPS Cloudflare per StreamingUnity quando il dominio risolve su 127.0.0.1.
   #Vers. 1.1.1
   Fix: episodio non segnato come visto (soglia 85%, salti di posizione, scorciatoie Vai a/Ultimo). Nuova vista parziale con percentuale nel titolo.
   #Vers. 1.1.0
