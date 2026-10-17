@@ -302,7 +302,32 @@ class _ResumePlayer(xbmc.Player):
             pass
 
 
-def _monitorPlayback(item_key):
+def _seekWhenRunning(player, monitor, target):
+    # Con setResolvedUrl Kodi ignora StartOffset, e un seek fatto appena
+    # isPlaying() diventa True viene perso (stream non ancora pronto).
+    # Si salta solo quando il tempo avanza, poi si verifica; max 3 tentativi.
+    for _ in range(3):
+        for _ in range(20):
+            try:
+                if player.isPlaying() and player.getTime() > 0.5:
+                    break
+            except Exception:
+                pass
+            if monitor.waitForAbort(0.5):
+                return
+        try:
+            player.seekTime(target)
+        except Exception:
+            pass
+        if monitor.waitForAbort(2):
+            return
+        try:
+            if player.getTime() >= target - 10:
+                return
+        except Exception:
+            pass
+
+def _monitorPlayback(item_key, resume_at=0):
     player = _ResumePlayer(item_key)
     monitor = xbmc.Monitor()
     # setResolvedUrl() e' asincrono: subito dopo, isPlaying() e' spesso ancora
@@ -320,6 +345,8 @@ def _monitorPlayback(item_key):
             return
     if not started:
         return
+    if resume_at > 0:
+        _seekWhenRunning(player, monitor, resume_at)
     # Poll periodico finche' il contenuto e' in riproduzione: nessun thread
     # dedicato, il loop blocca solo per la durata della riproduzione stessa
     # (pattern standard Kodi: xbmc.Monitor + waitForAbort).
@@ -330,12 +357,35 @@ def _monitorPlayback(item_key):
     player._persist()
 
 
+def _askResume(item_key):
+    # Episodio visto a meta': chiede se riprendere. Ritorna i secondi da cui
+    # partire (0 = dall'inizio) oppure None se l'utente annulla.
+    state = watched_store.load_state(item_key)
+    if not state or state.get('playcount', 0) >= 1:
+        return 0
+    resume = float(state.get('resume', 0) or 0)
+    if resume < 30:
+        return 0
+    m, s = divmod(int(resume), 60)
+    h, m = divmod(m, 60)
+    pos = "%d:%02d:%02d" % (h, m, s) if h else "%d:%02d" % (m, s)
+    choice = xbmcgui.Dialog().contextmenu(["Riprendi da " + pos, "Dall'inizio"])
+    if choice == -1:
+        return None
+    return resume if choice == 0 else 0
+
 def play_video(path, item_key=None):
+    resume_at = 0
+    if item_key:
+        resume_at = _askResume(item_key)
+        if resume_at is None:
+            xbmcplugin.setResolvedUrl(_handle, False, listitem=xbmcgui.ListItem())
+            return
     urlClean=path.replace(" ", "%20")
     play_item = xbmcgui.ListItem(path=urlClean)
     xbmcplugin.setResolvedUrl(_handle, True, listitem=play_item)
     if item_key:
-        _monitorPlayback(item_key)
+        _monitorPlayback(item_key, resume_at)
 
 def getTxtMessage(vName):
     home = ''
